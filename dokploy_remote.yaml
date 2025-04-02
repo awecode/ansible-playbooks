@@ -1,0 +1,32 @@
+- name: Add remoteserver to dokploy
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Enable root ssh login
+      ansible.builtin.shell: |
+        /usr/local/bin/update_config.sh /etc/ssh/sshd_config AllowUsers "{{ username }} root"
+        /usr/local/bin/update_config.sh /etc/ssh/sshd_config PermitRootLogin prohibit-password
+        systemctl restart sshd
+        systemctl restart ssh
+    - name: Get dokploy server key
+      ansible.builtin.uri:
+        url: "{{ dokploy_server_url }}/api/sshKey.one?sshKeyId={{ dokploy_server_key_id }}"
+        method: GET
+        headers:
+          x-api-key: "{{ dokploy_api_token }}"
+        return_content: true
+      register: dokploy_key_response
+    - name: Print dokploy server key
+      ansible.builtin.debug:
+        var: dokploy_key_response.json.publicKey
+    - name: Add dokploy server key to authorized_keys
+      ansible.builtin.lineinfile:
+        path: "/home/{{ username }}/.ssh/authorized_keys"
+        line: "{{ dokploy_key_response.json.publicKey }}"
+        state: present
+    - name: Add dokploy server key to root user authorized_keys
+      ansible.builtin.lineinfile:
+        path: "/root/.ssh/authorized_keys"
+        line: "{{ dokploy_key_response.json.publicKey }}"
+        state: present
