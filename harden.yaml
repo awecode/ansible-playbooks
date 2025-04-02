@@ -135,8 +135,8 @@
 
    - name: Configure SSH hardening settings
      ansible.builtin.shell: |
-       ufw allow "{{ port }}"/tcp
-       /usr/local/bin/update_config.sh /etc/ssh/sshd_config Port "{{ port }}"
+       ufw allow "{{ new_port }}"/tcp
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config Port "{{ new_port }}"
        /usr/local/bin/update_config.sh /etc/ssh/sshd_config AllowUsers "{{ username }}"
        /usr/local/bin/update_config.sh /etc/ssh/sshd_config PermitRootLogin no
        /usr/local/bin/update_config.sh /etc/ssh/sshd_config PasswordAuthentication no
