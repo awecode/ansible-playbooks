@@ -1,0 +1,24 @@
+- name: Create postgres database in dokploy
+  ansible.builtin.uri:
+    url: "{{ dokploy_server_url }}/api/postgres.create"
+    method: POST
+    headers:
+      x-api-key: "{{ dokploy_api_token }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      name: "{{ group_names[0] | replace('_', ' ') | title }} DB"
+      appName: "{{ group_names[0] | lower }}_db"
+      databaseName: "{{ group_names[0] | lower }}"
+      databaseUser: "{{ group_names[0] | lower }}_user"
+      databasePassword: "{{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
+      dockerImage: "postgres:17"
+      projectId: "{{ project_data.projectId }}"
+      # description: "Database created via Ansible"
+      serverId: "{{ server_id }}"
+    status_code: [200, 201]
+  register: dokploy_postgres_response
+
+- name: Print postgres response
+  ansible.builtin.debug:
+    var: dokploy_postgres_response

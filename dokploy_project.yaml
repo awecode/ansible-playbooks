@@ -31,11 +31,11 @@
 
     - name: Find our project in dokploy
       ansible.builtin.set_fact:
-        project_id: "{{ (dokploy_projects.json | selectattr('name', 'equalto', group_names[0] | replace('_', ' ') | title) | list | default([]) | first | default({})).projectId | default('') }}"
+        project_data: "{{ dokploy_projects.json | selectattr('name', 'equalto', group_names[0] | replace('_', ' ') | title) | list | default([]) | first | default({}) }}"
 
     - name: Print project found
       ansible.builtin.debug:
-        var: project_id
+        var: project_data
 
     - name: Create project in dokploy if it doesn't exist
       ansible.builtin.uri:
@@ -50,4 +50,8 @@
           # description: "Project added via Ansible"
         status_code: [200, 201]
       register: dokploy_project_response
-      when: not project_id
+      when: not project_data
+
+    - name: Create postgres db if requested
+      ansible.builtin.include_tasks: postgres.yaml
+      when: "create_postgres_db and (not 'postgres' in project_data or not project_data.postgres)"
