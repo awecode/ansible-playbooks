@@ -1,0 +1,29 @@
+- name: Create user
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+   - name: Create user
+     ansible.builtin.user:
+       name: "{{ item.name }}"
+       groups: "{{ item.groups }}"
+       shell: "{{ item.shell }}"
+       append: yes
+     loop:
+       - name: "{{ username }}"
+         groups: "users,sudo"
+         shell: /bin/bash
+
+   - name: Configure sudo access
+     ansible.builtin.lineinfile:
+       path: "/etc/sudoers.d/{{ username }}"
+       line: "{{ username }} ALL=(ALL) NOPASSWD:ALL"
+       create: yes
+       mode: '0440'
+       validate: 'visudo -cf %s'
+
+   - name: Add authorized SSH key
+     ansible.builtin.authorized_key:
+       user: "{{ username }}"
+       key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+       state: present
