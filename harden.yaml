@@ -1,0 +1,179 @@
+- name: Hardening
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+   - name: Update apt
+     ansible.builtin.apt:
+       update_cache: true
+       upgrade: true
+
+   - name: Install fail2ban and apt
+     ansible.builtin.apt:
+       pkg:
+         - fail2ban
+         - apt
+       state: present
+
+   - name: Configure unattended upgrades
+     ansible.builtin.copy:
+       dest: /etc/apt/apt.conf.d/50unattended-upgrades
+       content: |
+         Unattended-Upgrade::Allowed-Origins {
+             "${distro_id}:${distro_codename}-security";
+         };
+       mode: '0644'
+
+   - name: Configure sysctl hardening
+     ansible.builtin.copy:
+       dest: /etc/sysctl.conf
+       content: |
+         fs.protected_hardlinks = 1
+         fs.protected_symlinks = 1
+         fs.suid_dumpable = 0
+         kernel.core_uses_pid = 1
+         kernel.dmesg_restrict = 1
+         kernel.kptr_restrict = 2
+         kernel.panic = 60
+         kernel.panic_on_oops = 60
+         kernel.perf_event_paranoid = 2
+         kernel.randomize_va_space = 2
+         kernel.sysrq = 0
+         kernel.unprivileged_bpf_disabled = 1
+         kernel.yama.ptrace_scope = 2
+         net.core.bpf_jit_harden = 2
+         net.ipv4.conf.all.accept_redirects = 0
+         net.ipv4.conf.all.accept_source_route = 0
+         net.ipv4.conf.all.log_martians = 1
+         net.ipv4.conf.all.rp_filter = 1
+         net.ipv4.conf.all.secure_redirects = 0
+         net.ipv4.conf.all.send_redirects = 0
+         net.ipv4.conf.all.shared_media = 0
+         net.ipv4.conf.default.accept_redirects = 0
+         net.ipv4.conf.default.accept_source_route = 0
+         net.ipv4.conf.default.log_martians = 1
+         net.ipv4.conf.default.rp_filter = 1
+         net.ipv4.conf.default.secure_redirects = 0
+         net.ipv4.conf.default.send_redirects = 0
+         net.ipv4.conf.default.shared_media = 0
+         net.ipv4.icmp_echo_ignore_broadcasts = 1
+         net.ipv4.icmp_ignore_bogus_error_responses = 1
+         net.ipv4.ip_forward = 0
+         net.ipv4.tcp_challenge_ack_limit = 1000000
+         net.ipv4.tcp_invalid_ratelimit = 500
+         net.ipv4.tcp_max_syn_backlog = 20480
+         net.ipv4.tcp_rfc1337 = 1
+         net.ipv4.tcp_syn_retries = 5
+         net.ipv4.tcp_synack_retries = 2
+         net.ipv4.tcp_syncookies = 1
+         net.ipv4.tcp_timestamps = 0
+         net.ipv6.conf.all.accept_ra = 0
+         net.ipv6.conf.all.accept_redirects = 0
+         net.ipv6.conf.all.forwarding = 0
+         net.ipv6.conf.all.use_tempaddr = 2
+         net.ipv6.conf.default.accept_ra = 0
+         net.ipv6.conf.default.accept_ra_defrtr = 0
+         net.ipv6.conf.default.accept_ra_pinfo = 0
+         net.ipv6.conf.default.accept_redirects = 0
+         net.ipv6.conf.default.accept_source_route = 0
+         net.ipv6.conf.default.autoconf = 0
+         net.ipv6.conf.default.dad_transmits = 0
+         net.ipv6.conf.default.max_addresses = 1
+         net.ipv6.conf.default.router_solicitations = 0
+         net.ipv6.conf.default.use_tempaddr = 2
+         net.ipv6.conf.eth0.accept_ra_rtr_pref = 0
+       mode: '0644'
+
+   - name: Configure fail2ban jail settings
+     ansible.builtin.copy:
+       dest: /etc/fail2ban/jail.local
+       content: |
+         [sshd]
+         enabled = true
+         banaction = iptables-multiport
+       mode: '0644'
+
+   - name: Enable and start fail2ban service
+     ansible.builtin.systemd:
+       name: fail2ban
+       enabled: true
+       state: started
+
+   - name: Create config update script
+     ansible.builtin.copy:
+       dest: /usr/local/bin/update_config.sh
+       mode: '0755'
+       content: |
+         #!/bin/bash
+
+         update_config() {
+             local file="$1"
+             local key="$2"
+             local value="$3"
+
+             # Ensure the file exists
+             if [[ ! -f "$file" ]]; then
+                 echo "Error: File '$file' not found!" >&2
+                 exit 1
+             fi
+
+             # Remove existing entry (whether commented or not) and append the new value
+             sed -i -e "/^\s*#\?\s*${key}\s\+/d" "$file"
+             echo "$key $value" >> "$file"
+
+             echo "Updated '$file': Set '$key' to '$value'"
+         }
+
+         # Ensure correct number of arguments
+         if [[ $# -ne 3 ]]; then
+             echo "Usage: $0 <file> <key> <value>" >&2
+             exit 1
+         fi
+
+         # Call function with script arguments
+         update_config "$1" "$2" "$3"
+
+   - name: Configure SSH hardening settings
+     ansible.builtin.shell: |
+       ufw allow "{{ port }}"/tcp
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config Port "{{ port }}"
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config AllowUsers "{{ username }}"
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config PermitRootLogin no
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config PasswordAuthentication no
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config KbdInteractiveAuthentication no
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config ChallengeResponseAuthentication no
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config MaxAuthTries 2
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config AllowTcpForwarding no
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config X11Forwarding no
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config AllowAgentForwarding no
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config AuthorizedKeysFile .ssh/authorized_keys
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config ClientAliveInterval 300
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config ClientAliveCountMax 0
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config LogLevel VERBOSE
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config KexAlgorithms "curve25519-sha256@libssh.org,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group-exchange-sha256"
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config Ciphers "chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr"
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config MACs "hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512,hmac-sha2-256,umac-128@openssh.com"
+       /usr/local/bin/update_config.sh /etc/ssh/sshd_config HostKey /etc/ssh/ssh_host_ed25519_key
+       echo "HostKey /etc/ssh/ssh_host_rsa_key" >> /etc/ssh/sshd_config
+       echo "HostKey /etc/ssh/ssh_host_ecdsa_key" >> /etc/ssh/sshd_config
+
+       # Mount /run/shm as read-only
+       echo "none /run/shm tmpfs defaults,ro 0 0" | tee -a /etc/fstab > /dev/null
+       mount -o remount /run/shm
+
+       # Apply sysctl changes
+       sysctl -p
+
+       # Remove unnecessary packages
+       apt purge --auto-remove -y snapd squashfs-tools friendly-recovery apport at
+       apt autoremove --purge -y
+
+       # Enable and restart SSH daemon
+       systemctl enable sshd
+       systemctl restart sshd
+
+       # Enable UFW (Uncomplicated Firewall)
+       ufw --force enable
+
+       # Reboot to apply all changes
+       reboot
