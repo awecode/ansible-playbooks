@@ -3,33 +3,33 @@
   gather_facts: false
   become: true
   tasks:
-    - name: Enable root ssh login
-      ansible.builtin.shell: |
-        /usr/local/bin/update_config.sh /etc/ssh/sshd_config AllowUsers "{{ username }} root"
-        /usr/local/bin/update_config.sh /etc/ssh/sshd_config PermitRootLogin prohibit-password
-        systemctl restart sshd
-        systemctl restart ssh
+    # - name: Enable root ssh login
+    #   ansible.builtin.shell: |
+    #     /usr/local/bin/update_config.sh /etc/ssh/sshd_config AllowUsers "{{ username }} root"
+    #     /usr/local/bin/update_config.sh /etc/ssh/sshd_config PermitRootLogin prohibit-password
+    #     systemctl restart sshd
+    #     systemctl restart ssh
 
-    - name: Get dokploy server key
-      ansible.builtin.uri:
-        url: "{{ dokploy_server_url }}/api/sshKey.one?sshKeyId={{ dokploy_server_key_id }}"
-        method: GET
-        headers:
-          x-api-key: "{{ dokploy_api_token }}"
-        return_content: true
-      register: dokploy_key_response
+    # - name: Get dokploy server key
+    #   ansible.builtin.uri:
+    #     url: "{{ dokploy_server_url }}/api/sshKey.one?sshKeyId={{ dokploy_server_key_id }}"
+    #     method: GET
+    #     headers:
+    #       x-api-key: "{{ dokploy_api_token }}"
+    #     return_content: true
+    #   register: dokploy_key_response
 
-    - name: Add dokploy server key to authorized_keys
-      ansible.builtin.lineinfile:
-        path: "/home/{{ username }}/.ssh/authorized_keys"
-        line: "{{ dokploy_key_response.json.publicKey }}"
-        state: present
+    # - name: Add dokploy server key to authorized_keys
+    #   ansible.builtin.lineinfile:
+    #     path: "/home/{{ username }}/.ssh/authorized_keys"
+    #     line: "{{ dokploy_key_response.json.publicKey }}"
+    #     state: present
 
-    - name: Add dokploy server key to root user authorized_keys
-      ansible.builtin.lineinfile:
-        path: "/root/.ssh/authorized_keys"
-        line: "{{ dokploy_key_response.json.publicKey }}"
-        state: present
+    # - name: Add dokploy server key to root user authorized_keys
+    #   ansible.builtin.lineinfile:
+    #     path: "/root/.ssh/authorized_keys"
+    #     line: "{{ dokploy_key_response.json.publicKey }}"
+    #     state: present
 
     - name: Get existing servers from dokploy
       ansible.builtin.uri:
@@ -58,3 +58,25 @@
         status_code: [200, 201]
       register: dokploy_server_response
       when: existing_servers.json | selectattr('ipAddress', 'equalto', inventory_hostname) | list | length == 0
+
+    - name: Print server response
+      ansible.builtin.debug:
+        var: dokploy_server_response
+
+    - name: Setup server in dokploy
+      ansible.builtin.uri:
+        url: "{{ dokploy_server_url }}/api/server.setup"
+        method: POST
+        headers:
+          x-api-key: "{{ dokploy_api_token }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          serverId: "{{ dokploy_server_response.json.serverId }}"
+        status_code: [200, 201]
+        timeout: 1
+      async: 1000
+      poll: 0
+      register: dokploy_server_setup_response
+      when: '"skipped" not in dokploy_server_response'
+      # when: existing_servers.json | selectattr('ipAddress', 'equalto', inventory_hostname) | list | length == 0
