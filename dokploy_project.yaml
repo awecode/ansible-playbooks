@@ -65,3 +65,61 @@
     - name: Create postgres db if requested
       ansible.builtin.include_tasks: dokploy_postgres.yaml
       when: "create_postgres_db and (not 'postgres' in project_data or not project_data.postgres)"
+
+    - name: Print project data
+      ansible.builtin.debug:
+        var: project_data
+
+    - name: Create application if none exists
+      ansible.builtin.uri:
+        url: "{{ dokploy_server_url }}/api/application.create"
+        method: POST
+        headers:
+          x-api-key: "{{ dokploy_api_token }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          name: "WebApp"
+          appName: "{{ group_names[0] | lower }}"
+          description: "Application created via Ansible"
+          projectId: "{{ project_data.projectId }}"
+          serverId: "{{ server_id }}"
+        status_code: [200, 201]
+      register: dokploy_app_response
+      when: not project_data.applications or project_data.applications | length == 0
+
+    - name: Set application data from response
+      ansible.builtin.set_fact:
+        application_data: "{{ dokploy_app_response.json }}"
+      when: not project_data.applications or project_data.applications | length == 0
+
+    - name: Set application data from project data if available
+      ansible.builtin.set_fact:
+        application_data: "{{ project_data.applications[0] }}"
+      when: project_data.applications and project_data.applications | length > 0
+
+    - name: Print application data
+      ansible.builtin.debug:
+        var: application_data
+
+    - name: Update application configuration
+      ansible.builtin.uri:
+        url: "{{ dokploy_server_url }}/api/application.update"
+        method: POST
+        headers:
+          x-api-key: "{{ dokploy_api_token }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          applicationId: "{{ application_data.applicationId }}"
+          githubId: "{{ github_id }}"
+          repository: "{{ repository }}"
+          sourceType: "github"
+          branch: "{{ branch | default('main') }}"
+          buildType: "dockerfile"
+          dockerfile: "{{ dockerfile | default('Dockerfile') }}"
+          owner: "{{ owner }}"
+          herokuVersion: null
+          watchPaths: []
+        status_code: [200, 201]
+      register: dokploy_app_update_response
