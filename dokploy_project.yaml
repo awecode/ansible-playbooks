@@ -52,11 +52,16 @@
       register: dokploy_project_response
       when: not project_data
 
+    - name: Print project response
+      ansible.builtin.debug:
+        var: dokploy_project_response
+      when: not project_data
+
     - name: Set project data from response
       ansible.builtin.set_fact:
         project_data: "{{ dokploy_project_response.json }}"
       when: not project_data
 
     - name: Create postgres db if requested
-      ansible.builtin.include_tasks: postgres.yaml
+      ansible.builtin.include_tasks: dokploy_postgres.yaml
       when: "create_postgres_db and (not 'postgres' in project_data or not project_data.postgres)"
