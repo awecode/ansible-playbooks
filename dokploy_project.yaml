@@ -1,0 +1,53 @@
+- name: Setup project in dokploy
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Get all servers from dokploy
+      ansible.builtin.uri:
+        url: "{{ dokploy_server_url }}/api/server.all"
+        method: GET
+        headers:
+          x-api-key: "{{ dokploy_api_token }}"
+        return_content: true
+      register: dokploy_servers
+
+    - name: Find our server in dokploy
+      ansible.builtin.set_fact:
+        server_id: "{{ (dokploy_servers.json | selectattr('ipAddress', 'equalto', inventory_hostname) | list | first).serverId }}"
+
+    - name: Print server found
+      ansible.builtin.debug:
+        var: server_id
+
+    - name: Get all projects from dokploy
+      ansible.builtin.uri:
+        url: "{{ dokploy_server_url }}/api/project.all"
+        method: GET
+        headers:
+          x-api-key: "{{ dokploy_api_token }}"
+        return_content: true
+      register: dokploy_projects
+
+    - name: Find our project in dokploy
+      ansible.builtin.set_fact:
+        project_id: "{{ (dokploy_projects.json | selectattr('name', 'equalto', group_names[0] | replace('_', ' ') | title) | list | default([]) | first | default({})).projectId | default('') }}"
+
+    - name: Print project found
+      ansible.builtin.debug:
+        var: project_id
+
+    - name: Create project in dokploy if it doesn't exist
+      ansible.builtin.uri:
+        url: "{{ dokploy_server_url }}/api/project.create"
+        method: POST
+        headers:
+          x-api-key: "{{ dokploy_api_token }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          name: "{{ group_names[0] | replace('_', ' ') | title }}"
+          # description: "Project added via Ansible"
+        status_code: [200, 201]
+      register: dokploy_project_response
+      when: not project_id

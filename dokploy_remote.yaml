@@ -1,4 +1,4 @@
-- name: Add remote server to dokploy
+- name: Setup remote server on dokploy
   hosts: all
   gather_facts: false
   become: true

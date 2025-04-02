@@ -24,6 +24,15 @@ ansible-playbook -i inventory/servers.ini harden.yaml -e "ansible_port=22" -e "n
 ansible-playbook -i inventory/servers.ini harden.yaml -e "new_port=22222"
 ```
 
+## Setup server in dokploy
+```bash
+ansible-playbook -i inventory/servers.ini dokploy_remote.yaml
+```
+
+## Setup project in dokploy
+```bash
+ansible-playbook -i inventory/servers.ini dokploy_project.yaml
+```
 
 ## Add deploy key
 ```bash
