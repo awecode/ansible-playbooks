@@ -1,0 +1,40 @@
+- name: Add deploy key
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Create .ssh directory for user
+      ansible.builtin.file:
+        path: "/home/{{ username }}/.ssh"
+        state: directory
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0700'
+
+    - name: Add deploy SSH private key
+      ansible.builtin.copy:
+        src: ~/.ssh/id_ed25519_deploy_key
+        dest: "/home/{{ username }}/.ssh/id_ed25519_deploy_key"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0600'
+
+    - name: Add deploy SSH public key
+      ansible.builtin.copy:
+        src: ~/.ssh/id_ed25519_deploy_key.pub
+        dest: "/home/{{ username }}/.ssh/id_ed25519_deploy_key.pub"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0644'
+
+    - name: Configure SSH for GitHub
+      ansible.builtin.blockinfile:
+        path: "/home/{{ username }}/.ssh/config"
+        create: yes
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0600'
+        block: |
+          Host github.com
+            IdentityFile ~/.ssh/id_ed25519_deploy_key
+            User git
