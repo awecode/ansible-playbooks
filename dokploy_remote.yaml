@@ -1,4 +1,4 @@
-- name: Add remoteserver to dokploy
+- name: Add remote server to dokploy
   hosts: all
   gather_facts: false
   become: true
@@ -30,3 +30,24 @@
         path: "/root/.ssh/authorized_keys"
         line: "{{ dokploy_key_response.json.publicKey }}"
         state: present
+    - name: Create server in dokploy
+      ansible.builtin.uri:
+        url: "{{ dokploy_server_url }}/api/server.create"
+        method: POST
+        headers:
+          x-api-key: "{{ dokploy_api_token }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          name: "{{ inventory_hostname }}"
+          description: "Server added via Ansible"
+          ipAddress: "{{ inventory_hostname }}"
+          port: "{{ ansible_port }}"
+          username: root
+          sshKeyId: "{{ dokploy_server_key_id }}"
+        status_code: [200, 201]
+      register: dokploy_server_response
+
+    - name: Print server creation response
+      ansible.builtin.debug:
+        var: dokploy_server_response.json
