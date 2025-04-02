@@ -9,6 +9,7 @@
         /usr/local/bin/update_config.sh /etc/ssh/sshd_config PermitRootLogin prohibit-password
         systemctl restart sshd
         systemctl restart ssh
+
     - name: Get dokploy server key
       ansible.builtin.uri:
         url: "{{ dokploy_server_url }}/api/sshKey.one?sshKeyId={{ dokploy_server_key_id }}"
@@ -17,20 +18,33 @@
           x-api-key: "{{ dokploy_api_token }}"
         return_content: true
       register: dokploy_key_response
+
     - name: Print dokploy server key
       ansible.builtin.debug:
         var: dokploy_key_response.json.publicKey
+
     - name: Add dokploy server key to authorized_keys
       ansible.builtin.lineinfile:
         path: "/home/{{ username }}/.ssh/authorized_keys"
         line: "{{ dokploy_key_response.json.publicKey }}"
         state: present
+
     - name: Add dokploy server key to root user authorized_keys
       ansible.builtin.lineinfile:
         path: "/root/.ssh/authorized_keys"
         line: "{{ dokploy_key_response.json.publicKey }}"
         state: present
-    - name: Create server in dokploy
+
+    - name: Get existing servers from dokploy
+      ansible.builtin.uri:
+        url: "{{ dokploy_server_url }}/api/server.all"
+        method: GET
+        headers:
+          x-api-key: "{{ dokploy_api_token }}"
+        return_content: true
+      register: existing_servers
+
+    - name: Create server in dokploy if it doesn't exist
       ansible.builtin.uri:
         url: "{{ dokploy_server_url }}/api/server.create"
         method: POST
@@ -47,7 +61,9 @@
           sshKeyId: "{{ dokploy_server_key_id }}"
         status_code: [200, 201]
       register: dokploy_server_response
+      when: existing_servers.json | selectattr('ipAddress', 'equalto', inventory_hostname) | list | length == 0
 
     - name: Print server creation response
       ansible.builtin.debug:
         var: dokploy_server_response.json
+      when: dokploy_server_response.json is defined
