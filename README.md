@@ -34,7 +34,7 @@ ansible-playbook -i inventory/servers.ini dokploy_remote.yaml
 ansible-playbook -i inventory/servers.ini dokploy_project.yaml
 ```
 
-## Add deploy key
+## Add deploy key to authorized_keys
 ```bash
-ansible-playbook -i inventory/servers.ini deploy_key.yaml
+ansible-playbook -i inventory/servers.ini add_deploy_public_key.yaml
 ```
