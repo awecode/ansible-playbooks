@@ -86,17 +86,17 @@
           serverId: "{{ server_id }}"
         status_code: [200, 201]
       register: dokploy_app_response
-      when: not project_data.applications or project_data.applications | length == 0
+      when: "'applications' not in project_data or project_data.applications | length == 0"
 
     - name: Set application data from response
       ansible.builtin.set_fact:
         application_data: "{{ dokploy_app_response.json }}"
-      when: not project_data.applications or project_data.applications | length == 0
+      when: "'applications' not in project_data or project_data.applications | length == 0"
 
     - name: Set application data from project data if available
       ansible.builtin.set_fact:
         application_data: "{{ project_data.applications[0] }}"
-      when: project_data.applications and project_data.applications | length > 0
+      when: "'applications' in project_data and project_data.applications | length > 0"
 
     - name: Print application data
       ansible.builtin.debug:
