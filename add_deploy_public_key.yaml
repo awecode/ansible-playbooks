@@ -1,0 +1,32 @@
+- name: Add deploy public key to authorized_keys
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Create .ssh directory for user if it doesn't exist
+      ansible.builtin.file:
+        path: "/home/{{ username }}/.ssh"
+        state: directory
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0700'
+
+    - name: Create authorized_keys file if it doesn't exist
+      ansible.builtin.file:
+        path: "/home/{{ username }}/.ssh/authorized_keys"
+        state: touch
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0600'
+        modification_time: preserve
+        access_time: preserve
+      changed_when: false
+
+    - name: Add deploy server public key to authorized_keys
+      ansible.builtin.lineinfile:
+        path: "/home/{{ username }}/.ssh/authorized_keys"
+        line: "{{ deploy_server_public_key }}"
+        state: present
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0600'
