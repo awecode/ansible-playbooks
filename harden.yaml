@@ -99,6 +99,20 @@
        enabled: true
        state: started
 
+   - name: Mount /run/shm as read-only, apply sysctl changes, remove unnecessary packages
+     ansible.builtin.shell: |
+       # Mount /run/shm as read-only
+       echo "none /run/shm tmpfs defaults,ro 0 0" | tee -a /etc/fstab > /dev/null
+       mount -o remount /run/shm
+
+       # Apply sysctl changes
+       sysctl -p
+
+       # Remove unnecessary packages
+       apt purge --auto-remove -y snapd squashfs-tools friendly-recovery apport at
+       apt autoremove --purge -y
+
+
    - name: Create config update script
      ansible.builtin.copy:
        dest: /usr/local/bin/update_config.sh
@@ -157,16 +171,8 @@
        echo "HostKey /etc/ssh/ssh_host_rsa_key" >> /etc/ssh/sshd_config
        echo "HostKey /etc/ssh/ssh_host_ecdsa_key" >> /etc/ssh/sshd_config
 
-       # Mount /run/shm as read-only
-       echo "none /run/shm tmpfs defaults,ro 0 0" | tee -a /etc/fstab > /dev/null
-       mount -o remount /run/shm
-
        # Apply sysctl changes
        sysctl -p
-
-       # Remove unnecessary packages
-       apt purge --auto-remove -y snapd squashfs-tools friendly-recovery apport at
-       apt autoremove --purge -y
 
        # Enable and restart SSH daemon
        systemctl enable sshd
